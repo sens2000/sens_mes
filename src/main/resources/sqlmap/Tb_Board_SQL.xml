@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 	<select id="findSheetList" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap">
+		<mapper namespace="sy2015Mapper">
+ -->
+<!-- 맵핑될 DAO 인터페이스의 Full name 을 줍니다. -->
+<mapper namespace="com.sens.lush.service.dao.loginDAO">
+
+<!--
+//select * from prog_info order by newid;
+//select max(convert(int,progid)) from prog_info;
+insert into prog_info 
+select 
+convert(char(4),(select max(convert(int,progid)) from prog_info) + number(*))
+,program
+,progname
+,'m_' + progkind
+,newid
+,parm
+,company
+,gubun
+from prog_list
+where gubun = '01'; 
+
+insert into user_prog 
+select 'polsse' ,progid from prog_info where progkind like 'm_%';
+ -->
+<!-- id 속성은 DAO 의 메소드와 같아야 한다. 여기의 boardVO 는 mybatis-confg.xml 에 Alias 되어 있습니다. -->
+<select id="loginCheck" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	SELECT USERID
+		,USERPASS
+		,NAME
+		,SHOPNO
+		,SHOPNAME
+		,GRADE
+		,POSITION
+		,(SELECT GROUPNO FROM SHOP_LIST WHERE SHOPNO = A.SHOPNO) GROUPNO
+	FROM USER_INFO A 
+		WHERE 1=1 
+		AND CHK = 'Y'
+		AND USERID != ''
+		AND A.USERID = #{SID} 
+		AND A.USERPASS = #{SPASS}
+</select>
+
+<select id="PosInfo" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	SELECT CUSTCD
+		,CUSTNAME
+		,OWNER
+		,SANO
+		,TELNO
+		,SOADDR + SUBADDR	CUADDR
+		,PRICEWAY
+	FROM USER_MST 
+	WHERE CUSTCD = #{BUSEO}
+</select>
+
+			
+<select id="menuGroup" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	SELECT P.GUBUN,P.PROGRAM,P.PROGNAME,P.PROGKIND,P.PARM,P.COMPANY 
+    FROM PROG_INFO P,            USER_PROG  U
+   WHERE P.PROGID = U.PROGID 
+   	AND U.USERID = 'polsse'
+   	AND P.GUBUN != ''
+   	AND P.PROGKIND = #{PROGKIND}  
+	ORDER BY P.NEWID
+</select>
+
+<select id="menuAgent" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	SELECT PROGRAM
+		,NAME
+		,GUBUN
+		,CHK
+		,WEBID 
+	FROM PROG_INFO 
+	WHERE GRADE <![CDATA[>]]> 0 and GUBUN != '' and webid != '' and grade <![CDATA[<=]]> #{GRADE}
+	ORDER BY GUBUN
+</select>
+
+<select id="selectGroupNews" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	  SELECT GROUP_NEWS.NEWS_KEY,
+			 GROUP_NEWS.SHOPNO,
+	         GROUP_NEWS.NEWS_DATE,   
+	         GROUP_NEWS.TITLE,   
+	         GROUP_NEWS.CONTENT,   
+	         GROUP_NEWS.END_DATE,
+	         GROUP_NEWS.FILENAME
+	    FROM GROUP_NEWS
+	   WHERE GROUP_NEWS.SHOPNO IN ('SHOP',#{SHOPNO})
+	     AND GROUP_NEWS.END_DATE <![CDATA[>=]]> DATEFORMAT(GETDATE(),'YYYYMMDD')
+	ORDER BY GROUP_NEWS.NEWS_KEY DESC   
+</select>
+
+<select id="selectShopDay" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	SELECT SHOPNO,(SELECT SHOPNAME FROM USER_MST WHERE USER_MST.SHOPNO = MC20_MST.SHOPNO) SHOPNAME,
+		SUM(AMT - MC20_MST.SALEAMT - MC20_MST.BONUSUSE) AMT,SUM(CASHAMT) CASHAMT,SUM(CARDAMT) CARDAMT
+		,SUM(MC20_MST.SALEAMT + MC20_MST.SAEUNAMT + MC20_MST.BONUSUSE) SALEAMT
+		,SUM(VISITCNT) VISITCNT
+	 FROM MC20_MST WHERE SHOPNO IN (SELECT SHOPNO FROM SHOP_LIST WHERE GROUPNO =  #{GROUPNO})
+		AND MC20_MST.CHDATE = DATEFORMAT(GETDATE() ,'YYYYMMDD') 
+	GROUP BY SHOPNO
+	ORDER BY SHOPNO
+</select>
+	
+<select id="selectComDay" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
+	SELECT CHDATE,SUM(AMT - MC20_MST.SALEAMT - MC20_MST.BONUSUSE) AMT,SUM(CASHAMT) CASHAMT,SUM(CARDAMT) CARDAMT
+		,SUM(SAEUNAMT) SAEUNAMT,SUM(MC20_MST.SALEAMT + MC20_MST.SAEUNAMT + MC20_MST.BONUSUSE) SALEAMT,SUM(BONUSAMT) BONUSAMT,SUM(BONUSUSE) BONUSUSE,SUM(VISITCNT) VISITCNT
+	 FROM MC20_MST WHERE SHOPNO = #{SHOPNO}
+		AND MC20_MST.CHDATE BETWEEN DATEFORMAT(GETDATE() -10 ,'YYYYMMDD') AND DATEFORMAT(GETDATE() ,'YYYYMMDD') 
+	GROUP BY CHDATE
+	ORDER BY CHDATE DESC
+</select>
+	
+</mapper>

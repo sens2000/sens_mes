@@ -1,0 +1,239 @@
+<%@ page pageEncoding="UTF-8" %>
+<%-- =====================================================================
+  제품정보 등록 — 공통 팝업  (/WEB-INF/common/jepm_new.jspf)
+
+  사용법 (Bootstrap 5 화면)
+    1) JSP 의 </body> 바로 앞, bootstrap.bundle.min.js 아래에 include
+         <%@ include file="/WEB-INF/common/jepm_new.jspf" %>
+    2) 버튼 등에서 호출
+         JepmNew.open();                                   // 빈 화면으로
+         JepmNew.open('8801234567890');                    // 숫자면 제품코드, 글자면 제품명에 미리 넣음
+         JepmNew.open({ jepmcd: '...', jepmnm: '...', onSaved: function (p) { ... } });
+         JepmNew.edit('제품코드', { onSaved: function (p) { ... } });   // 수정 (제품코드는 못 바꿈)
+       onSaved(p) : 등록이 끝나면 등록한 제품을 넘겨줌
+         p = { jepmkey, jepmcd, oldbar, makecust, brand, jepmnm, price, saleprice, inprice,
+               jpmbonus, noBonus, setchk, remk, chk }
+  서버 : jepm_Controller  /jepm/new, /jepm/update, /jepm/get, /jepm/names
+  이 파일은 UTF-8 (첫 줄 pageEncoding="UTF-8" 지우지 말 것 — 지우면 톰캣/이클립스가 다른 인코딩으로 읽어 한글이 깨짐)
+  ===================================================================== --%>
+<style>
+  #jepmNewModal .form-label { font-size: 12px; color: #6b7686; margin-bottom: 2px; }
+  #jepmNewModal .money { text-align: right; }
+</style>
+
+<div class="modal fade" id="jepmNewModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2" style="background:#2d3d5c;color:#fff">
+        <h6 class="modal-title" id="jnTitle">제품 등록</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label">제품코드 *</label>
+            <input type="text" class="form-control form-control-sm" id="jnJepmcd" autocomplete="off"></div>
+          <div class="col-6"><label class="form-label">바코드</label>
+            <input type="text" class="form-control form-control-sm" id="jnOldbar" autocomplete="off" placeholder="스캔 또는 입력"></div>
+
+          <div class="col-6"><label class="form-label">제조회사</label>
+            <input type="text" class="form-control form-control-sm" id="jnMakecust" list="jnMakerList" autocomplete="off">
+            <datalist id="jnMakerList"></datalist></div>
+          <div class="col-6"><label class="form-label">브랜드</label>
+            <input type="text" class="form-control form-control-sm" id="jnBrand" list="jnBrandList" autocomplete="off">
+            <datalist id="jnBrandList"></datalist></div>
+
+          <div class="col-12"><label class="form-label">제품명 *</label>
+            <input type="text" class="form-control form-control-sm" id="jnJepmnm" autocomplete="off"></div>
+
+          <div class="col-4"><label class="form-label">정가 *</label>
+            <input type="text" class="form-control form-control-sm money" id="jnPrice" inputmode="numeric" autocomplete="off"></div>
+          <div class="col-4"><label class="form-label">판매가</label>
+            <input type="text" class="form-control form-control-sm money" id="jnSaleprice" inputmode="numeric" autocomplete="off"
+                   placeholder="비우면 정가" title="100 미만을 입력하면 할인율(%)로 계산 : 정가 - (정가 × 할인율 / 100)">
+            <div class="form-text mt-0" id="jnSaleHint" style="font-size:11px">100 미만 = 할인율%</div></div>
+          <div class="col-4"><label class="form-label">입고가</label>
+            <input type="text" class="form-control form-control-sm money" id="jnInprice" inputmode="numeric" autocomplete="off"></div>
+
+          <div class="col-4"><label class="form-label">포인트구분</label>
+            <select class="form-select form-select-sm" id="jnJpmbonus"><option value="Y">적립</option><option value="N">적립 제외</option></select></div>
+          <div class="col-4"><label class="form-label">세트구분</label>
+            <select class="form-select form-select-sm" id="jnSetchk"><option value="N">일반</option><option value="Y">세트</option></select></div>
+          <div class="col-4"><label class="form-label">사용유무</label>
+            <select class="form-select form-select-sm" id="jnChk" title="사용 안 함으로 바꾸면 판매화면 검색에 안 나옴"><option value="Y">사용</option><option value="N">사용 안 함</option></select></div>
+
+          <div class="col-12"><label class="form-label">비고</label>
+            <input type="text" class="form-control form-control-sm" id="jnRemk" autocomplete="off"></div>
+        </div>
+        <div class="small text-danger mt-2" id="jnErr"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-sm btn-primary" id="jnOk">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.JepmNew = (function () {
+  'use strict';
+  var URL = '${pageContext.request.contextPath}/jepm';
+  var modal = null, saving = false, onSaved = null, namesLoaded = false;
+  var editing = false;   // true = 수정 (제품코드는 못 바꿈)
+  var $ = function (id) { return document.getElementById(id); };
+  var TEXT = ['jnJepmcd', 'jnOldbar', 'jnMakecust', 'jnBrand', 'jnJepmnm', 'jnPrice', 'jnSaleprice', 'jnInprice', 'jnRemk'];
+  var MONEY = ['jnPrice', 'jnSaleprice', 'jnInprice'];
+
+  function num(v) { return Number(String(v == null ? '' : v).replace(/[^\d]/g, '')) || 0; }
+  function won(n) { return n ? Number(n).toLocaleString('ko-KR') : ''; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
+    return fetch(URL + path, opt)
+      .then(function (r) { if (!r.ok) throw new Error('서버 요청 실패 (' + r.status + ')'); return r.json(); })
+      .then(function (res) { if (!res.ok) throw new Error(res.msg || '처리 중 오류가 발생했습니다.'); return res.data; });
+  }
+
+  function init() {
+    if (modal) return;
+    modal = new bootstrap.Modal($('jepmNewModal'));
+    $('jepmNewModal').addEventListener('shown.bs.modal', function () {
+      (editing ? $('jnJepmnm') : $('jnJepmcd').value ? ($('jnJepmnm').value ? $('jnPrice') : $('jnJepmnm')) : $('jnJepmcd')).focus();
+    });
+    $('jepmNewModal').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.isComposing) return;
+      e.preventDefault();
+      // 판매가에 100 미만(할인율)을 넣고 Enter → 저장하지 않고 바로 금액으로 바꿔 보여줌 (한 번 더 Enter 하면 저장)
+      if (e.target.id === 'jnSaleprice') {
+        var v = num(e.target.value);
+        if (v > 0 && v < 100) {
+          if (!num($('jnPrice').value)) { $('jnErr').textContent = '할인율을 계산하려면 정가를 먼저 입력하세요.'; $('jnPrice').focus(); return; }
+          applyRate();
+          e.target.select();
+          return;
+        }
+      }
+      save();
+    });
+    MONEY.forEach(function (id) {
+      $(id).addEventListener('focus', function () { this.value = this.value.replace(/,/g, ''); this.select(); });
+      $(id).addEventListener('blur', function () { this.value = won(num(this.value)); });
+    });
+    // 판매가 1~99 = 할인율(%) → 정가 - (정가 × 할인율 / 100), 할인액 원 단위 버림 (서버도 같은 식으로 다시 계산)
+    $('jnSaleprice').addEventListener('blur', applyRate);
+    $('jnPrice').addEventListener('blur', applyRate);
+    $('jnOk').onclick = save;
+  }
+
+  var lastRate = 0;
+  function applyRate() {
+    var price = num($('jnPrice').value), v = num($('jnSaleprice').value);
+    if (v > 0 && v < 100) lastRate = v;                       // 할인율 입력
+    else if (v !== salePriceOf(price, lastRate)) lastRate = 0;  // 판매가를 직접 고침
+    if (lastRate && price) {
+      $('jnSaleprice').value = won(salePriceOf(price, lastRate));
+      $('jnSaleHint').textContent = '할인율 ' + lastRate + '% 적용';
+    } else {
+      $('jnSaleHint').textContent = '100 미만 = 할인율%';
+    }
+  }
+  function salePriceOf(price, rate) { return rate > 0 && rate < 100 ? price - Math.floor(price * rate / 100) : 0;
+  }
+
+  function loadNames() {
+    if (namesLoaded) return;
+    call('/names').then(function (r) {
+      namesLoaded = true;
+      $('jnBrandList').innerHTML = (r.brands || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('');
+      $('jnMakerList').innerHTML = (r.makers || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('');
+    }).catch(function () { /* 자동완성은 없어도 등록 가능 */ });
+  }
+
+  // 등록·수정 공통 초기화
+  function reset(isEdit) {
+    init();
+    editing = isEdit;
+    TEXT.forEach(function (id) { $(id).value = ''; });
+    $('jnJpmbonus').value = 'Y';
+    $('jnSetchk').value = 'N';
+    $('jnChk').value = 'Y';
+    $('jnChk').disabled = !isEdit;                 // 신규는 항상 사용
+    $('jnJepmcd').readOnly = isEdit;                // 수정 때 제품코드는 못 바꿈
+    $('jnJepmcd').classList.toggle('bg-light', isEdit);
+    $('jnTitle').textContent = isEdit ? '제품 정보 수정' : '제품 등록';
+    $('jnOk').textContent = isEdit ? '저장' : '등록';
+    $('jnErr').textContent = '';
+    lastRate = 0;
+    $('jnSaleHint').textContent = '100 미만 = 할인율%';
+    loadNames();
+  }
+
+  // 수정 : edit('제품코드', { onSaved: function (p) { ... } })
+  function edit(jepmcd, opt) {
+    opt = opt || {};
+    call('/get?jepmcd=' + encodeURIComponent(String(jepmcd || '').trim())).then(function (p) {
+      reset(true);
+      onSaved = typeof opt.onSaved === 'function' ? opt.onSaved : null;
+      $('jnJepmcd').value   = p.jepmcd;
+      $('jnOldbar').value   = p.oldbar;
+      $('jnMakecust').value = p.makecust;
+      $('jnBrand').value    = p.brand;
+      $('jnJepmnm').value   = p.jepmnm;
+      $('jnPrice').value    = won(p.price);
+      $('jnSaleprice').value = won(p.saleprice);
+      $('jnInprice').value  = won(p.inprice);
+      $('jnJpmbonus').value = p.noBonus ? 'N' : 'Y';
+      $('jnSetchk').value   = String(p.setchk).toUpperCase() === 'Y' ? 'Y' : 'N';
+      $('jnChk').value      = String(p.chk).toUpperCase() === 'N' ? 'N' : 'Y';
+      $('jnRemk').value     = p.remk;
+      modal.show();
+    }).catch(function (e) { alert(e.message || e); });
+  }
+
+  // 등록 : open() / open('코드 또는 이름') / open({ jepmcd, oldbar, jepmnm, brand, onSaved })
+  function open(opt) {
+    reset(false);
+    if (typeof opt === 'string') opt = /^[\w-]+$/.test(opt.trim()) && /\d/.test(opt) ? { jepmcd: opt } : { jepmnm: opt };
+    opt = opt || {};
+    onSaved = typeof opt.onSaved === 'function' ? opt.onSaved : null;
+    $('jnJepmcd').value = String(opt.jepmcd || '').trim();
+    $('jnOldbar').value = String(opt.oldbar || '').trim();
+    $('jnJepmnm').value = String(opt.jepmnm || '').trim();
+    $('jnBrand').value  = String(opt.brand || '').trim();
+    modal.show();
+  }
+
+  function save() {
+    if (saving) return;
+    var body = {
+      jepmcd: $('jnJepmcd').value.trim(), oldbar: $('jnOldbar').value.trim(),
+      makecust: $('jnMakecust').value.trim(), brand: $('jnBrand').value.trim(), jepmnm: $('jnJepmnm').value.trim(),
+      price: num($('jnPrice').value), saleprice: num($('jnSaleprice').value), inprice: num($('jnInprice').value),
+      jpmbonus: $('jnJpmbonus').value, setchk: $('jnSetchk').value, remk: $('jnRemk').value.trim(),
+      chk: $('jnChk').value
+    };
+    var err = !body.jepmcd ? ['제품코드를 입력하세요.', 'jnJepmcd']
+            : !body.jepmnm ? ['제품명을 입력하세요.', 'jnJepmnm']
+            : !body.price ? ['정가를 입력하세요.', 'jnPrice'] : null;
+    if (err) { $('jnErr').textContent = err[0]; $(err[1]).focus(); return; }
+
+    saving = true;
+    $('jnOk').disabled = true;
+    $('jnErr').textContent = '';
+    call(editing ? '/update' : '/new', body)
+      .then(function (p) {
+        modal.hide();
+        if (body.brand || body.makecust) namesLoaded = false;   // 새 브랜드가 생겼을 수 있으니 다음에 다시 읽음
+        if (onSaved) onSaved(p);
+      })
+      .catch(function (e) { $('jnErr').textContent = e.message || e; })
+      .then(function () { saving = false; $('jnOk').disabled = false; });
+  }
+
+  return { open: open, edit: edit };
+})();
+</script>
