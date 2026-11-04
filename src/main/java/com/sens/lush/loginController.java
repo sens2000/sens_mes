@@ -272,7 +272,44 @@ public class loginController {
 	    
 	    return "s_news"; // ViewResolver가 /WEB-INF/(views 등 설정된 경로)/s_main.jsp 로 알아서 매핑
 	}
-	
+
+	/** 매장별 매출 재조회 (s_news 화면의 일자 선택 + [재조회] 버튼)
+	 *  date=yyyyMMdd (없으면 오늘) → 쿼리 파라미터 SDATE 로 전달 */
+	@RequestMapping(value = "/s_shopDay.do", produces = "application/json;charset=UTF-8")
+	@ResponseBody
+	public String s_shopDay(HttpServletRequest request) throws Exception {
+	    HttpSession session = request.getSession(false);
+	    HashMap mapUser = (session != null) ? (HashMap) session.getAttribute("USER") : null;
+	    Map<String, Object> res = new HashMap<String, Object>();
+	    if (mapUser == null) {
+	        res.put("ok", false);
+	        res.put("login", true);
+	        res.put("msg", "로그인이 필요합니다.");
+	        return objectMapper.writeValueAsString(res);
+	    }
+	    try {
+	        String sDate = request.getParameter("date");
+	        if (sDate != null) sDate = sDate.replace("-", "");
+	        if (sDate == null || !sDate.matches("\\d{8}")) {
+	            sDate = new SimpleDateFormat("yyyyMMdd").format(new Date());
+	        }
+	        // 세션 USER 는 건드리지 않도록 복사본에 일자 추가
+	        HashMap param = new HashMap(mapUser);
+	        param.put("SDATE", sDate);
+	        List<Map<String, Object>> shopmclist = Service.gridShopDay(param);
+	        res.put("date", sDate);
+	        logger.info("s_shopDay " + sDate + " size: " + (shopmclist == null ? "null" : shopmclist.size()));
+	        res.put("ok", true);
+	        res.put("data", shopmclist == null ? new ArrayList<Map<String, Object>>() : shopmclist);
+	        res.put("time", new SimpleDateFormat("HH:mm:ss").format(new Date()));
+	    } catch (Exception e) {
+	        logger.error("s_shopDay error", e);
+	        res.put("ok", false);
+	        res.put("msg", "매출 조회 중 오류가 발생했습니다.");
+	    }
+	    return objectMapper.writeValueAsString(res);
+	}
+
 //	@RequestMapping(value = "/s_boards.do", produces = "application/json;charset=UTF-8")
 //	@ResponseBody
 //	public String s_boards(HttpServletRequest request,Model model, HttpSession session) throws Exception {

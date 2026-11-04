@@ -164,7 +164,11 @@
         <div class="card box-card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span>매장별 매출</span>
-            <span class="small text-muted fw-normal">오늘 · 단위: 원</span>
+            <span class="d-flex align-items-center gap-2">
+              <span class="small text-muted fw-normal">단위: 원 <span id="shopTime"></span></span>
+              <input type="date" id="shopDate" class="form-control form-control-sm" style="width:140px">
+              <button type="button" class="btn btn-warning btn-news-add" id="btnShopReload">재조회</button>
+            </span>
           </div>
           <div class="card-body p-2">
             <div class="box-scroll top-scroll table-responsive" style="height:calc((100vh - 330px) / 3 + 39px);">
@@ -642,8 +646,75 @@
       .catch(function (e) { console.log("s_news/mine", e); });
   }
 
+  /* ===== 매장별 매출 재조회 ===== */
+  function fmtNum(v) { const n = Number(v) || 0; return Math.round(n).toLocaleString("ko-KR"); }
+  function numOf(v)  { const n = Number(v); return isNaN(n) ? 0 : n; }
+
+  function reloadShop() {
+    const btn = document.getElementById("btnShopReload");
+    btn.disabled = true; btn.textContent = "조회 중…";
+    const d = document.getElementById("shopDate").value;      // yyyy-MM-dd
+    if (!d) { alert("조회할 일자를 선택하세요."); btn.disabled = false; btn.textContent = "재조회"; return; }
+    fetch(CTX + "/s_shopDay.do?date=" + encodeURIComponent(d.replace(/-/g, "")), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("서버 요청 실패 (" + r.status + ")"); return r.json(); })
+      .then(function (res) {
+        if (!res.ok) {
+          if (res.login) { alert(res.msg); location.href = CTX + "/s_news.do"; return; }
+          throw new Error(res.msg || "조회 중 오류가 발생했습니다.");
+        }
+        drawShop(res.data || [], toInput(res.date) === ymdInput(new Date()));
+        document.getElementById("shopTime").textContent = "· " + (res.time || "") + " 기준";
+      })
+      .catch(function (e) { alert(e.message || e); })
+      .then(function () { btn.disabled = false; btn.textContent = "재조회"; });
+  }
+
+  function drawShop(list, isToday) {
+    const table = document.getElementById("shopTable");
+    const body  = table.tBodies[0];
+    table.querySelectorAll("thead th").forEach(function (h) { h.classList.remove("asc", "desc"); });
+    const oldFoot = table.tFoot; if (oldFoot) oldFoot.remove();
+    body.innerHTML = "";
+
+    if (!list.length) {
+      body.innerHTML = '<tr><td colspan="7" class="c text-muted py-5">' + (isToday ? "오늘" : "선택한 일자의") + ' 매출 자료가 없습니다.</td></tr>';
+      return;
+    }
+    let sAmt = 0, sCash = 0, sCard = 0, sSale = 0, sVisit = 0;
+    list.forEach(function (s) {
+      const amt = numOf(s.AMT), cash = numOf(s.CASHAMT), card = numOf(s.CARDAMT),
+            sale = numOf(s.SALEAMT), visit = numOf(s.VISITCNT);
+      const tr = document.createElement("tr");
+      if (String(s.SHOPNO || "") === MY_SHOP) tr.className = "my-shop";
+      tr.dataset.shopno = s.SHOPNO || "";
+      tr.innerHTML = '<td class="l"></td><td class="fw-bold"></td><td></td><td></td><td></td><td></td><td></td>';
+      tr.cells[0].textContent = s.SHOPNAME || "";
+      tr.cells[1].textContent = fmtNum(amt);
+      tr.cells[2].textContent = fmtNum(cash);
+      tr.cells[3].textContent = fmtNum(card);
+      tr.cells[4].textContent = fmtNum(sale);
+      tr.cells[5].textContent = fmtNum(visit);
+      tr.cells[6].textContent = visit > 0 ? fmtNum((cash + card) / visit) : "0";
+      body.appendChild(tr);
+      sAmt += amt; sCash += cash; sCard += card; sSale += sale; sVisit += visit;
+    });
+    const foot = table.createTFoot();
+    foot.innerHTML = '<tr><td class="c">합계</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+    const c = foot.rows[0].cells;
+    c[1].textContent = fmtNum(sAmt);  c[2].textContent = fmtNum(sCash); c[3].textContent = fmtNum(sCard);
+    c[4].textContent = fmtNum(sSale); c[5].textContent = fmtNum(sVisit);
+    c[6].textContent = sVisit > 0 ? fmtNum((sCash + sCard) / sVisit) : "0";
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     checkLogin();
+
+    // 매장별 매출 일자: 기본 오늘, 미래 날짜 선택 불가, 날짜를 바꾸면 바로 조회
+    const shopDate = document.getElementById("shopDate");
+    shopDate.value = ymdInput(new Date());
+    shopDate.max   = ymdInput(new Date());
+    shopDate.addEventListener("change", reloadShop);
+    document.getElementById("btnShopReload").addEventListener("click", reloadShop);
 
     document.getElementById("btnNewsAdd").addEventListener("click", function () { openEdit(null); });
     document.getElementById("btnNewsSave").addEventListener("click", saveNews);

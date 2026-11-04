@@ -97,7 +97,14 @@ select 'polsse' ,progid from prog_info where progkind like 'm_%';
 		,SUM(MC20_MST.SALEAMT + MC20_MST.SAEUNAMT + MC20_MST.BONUSUSE) SALEAMT
 		,SUM(VISITCNT) VISITCNT
 	 FROM MC20_MST WHERE SHOPNO IN (SELECT SHOPNO FROM SHOP_LIST WHERE GROUPNO =  #{GROUPNO})
+		<choose>
+			<when test="SDATE != null and SDATE != ''">
+		AND MC20_MST.CHDATE = #{SDATE}
+			</when>
+			<otherwise>
 		AND MC20_MST.CHDATE = DATEFORMAT(GETDATE() ,'YYYYMMDD') 
+			</otherwise>
+		</choose>
 	GROUP BY SHOPNO
 	ORDER BY SHOPNO
 </select>

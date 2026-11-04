@@ -23,7 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class RememberMeService {
 
-    private static final long EXPIRE_MILLIS = 30L * 24 * 60 * 60 * 1000; // 30일
+//    private static final long EXPIRE_MILLIS = 30L * 24 * 60 * 60 * 1000; // 30일
+    private static final long EXPIRE_MILLIS = 1L * 8 * 60 * 60 * 1000; // 8시간
+    
 
     private static volatile RememberMeService instance;
 

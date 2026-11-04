@@ -178,7 +178,7 @@ public class ar307_Controller {
                 "   AND a.KIND    = '매출'" +              // 반품도 KIND = '매출'
                 "   AND a.CHDATE BETWEEN :f AND :t");
             MapSqlParameterSource p = new MapSqlParameterSource()
-                .addValue("shop", shopNo(session)).addValue("grp", groupNo(session))
+                .addValue("shop", shopNo(session)).addValue("grp", shopNo(session))
                 .addValue("f", f).addValue("t", t);
 
             // 입력한 항목만 조건 추가 (비워 두면 전체)
