@@ -27,20 +27,22 @@ select 'polsse' ,progid from prog_info where progkind like 'm_%';
  -->
 <!-- id 속성은 DAO 의 메소드와 같아야 한다. 여기의 boardVO 는 mybatis-confg.xml 에 Alias 되어 있습니다. -->
 <select id="loginCheck" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
-	SELECT USERID
-		,USERPASS
+	SELECT
+		COMPANY
+		,SECTNAME
+		,CODE
 		,NAME
-		,SHOPNO
-		,SHOPNAME
+		,TOISA 
+		,USERID
+		,PASS
 		,GRADE
-		,POSITION
-		,(SELECT GROUPNO FROM SHOP_LIST WHERE SHOPNO = A.SHOPNO) GROUPNO
-	FROM USER_INFO A 
+		,WONGA
+	FROM SAWON_MST A 
 		WHERE 1=1 
-		AND CHK = 'Y'
+		AND TOISA = ''
 		AND USERID != ''
 		AND A.USERID = #{SID} 
-		AND A.USERPASS = #{SPASS}
+		AND A.PASS = #{SPASS}
 </select>
 
 <select id="PosInfo" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
@@ -56,39 +58,45 @@ select 'polsse' ,progid from prog_info where progkind like 'm_%';
 </select>
 
 			
-<select id="menuGroup" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
-	SELECT P.GUBUN,P.PROGRAM,P.PROGNAME,P.PROGKIND,P.PARM,P.COMPANY 
-    FROM PROG_INFO P,            USER_PROG  U
-   WHERE P.PROGID = U.PROGID 
-   	AND U.USERID = 'polsse'
-   	AND P.GUBUN != ''
-   	AND P.PROGKIND = #{PROGKIND}  
-	ORDER BY P.NEWID
-</select>
-
 <select id="menuAgent" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
-	SELECT PROGRAM
-		,NAME
-		,GUBUN
-		,CHK
-		,WEBID 
-	FROM PROG_INFO 
-	WHERE GRADE <![CDATA[>]]> 0 and GUBUN != '' and webid != '' and grade <![CDATA[<=]]> #{GRADE}
-	ORDER BY GUBUN
+<![CDATA[ 
+  SELECT program,   
+         progname ,   
+         parm ,   
+         progkind ,   
+			newid ,
+         userid,   
+         prog_info.progid,
+         webid  
+    FROM prog_info,   
+         user_prog  
+   WHERE prog_info.progid = user_prog.progid and 
+			user_prog.userid = #{CODE}  and
+			prog_info.newid > '0099'  and
+			prog_info.chk = 'Y' and
+			webid != ''
+	order by prog_info.newid
+]]>  
 </select>
 
 <select id="selectGroupNews" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 
-	  SELECT GROUP_NEWS.NEWS_KEY,
-			 GROUP_NEWS.SHOPNO,
-	         GROUP_NEWS.NEWS_DATE,   
-	         GROUP_NEWS.TITLE,   
-	         GROUP_NEWS.CONTENT,   
-	         GROUP_NEWS.END_DATE,
-	         GROUP_NEWS.FILENAME
-	    FROM GROUP_NEWS
-	   WHERE GROUP_NEWS.SHOPNO IN ('SHOP',#{SHOPNO})
-	     AND GROUP_NEWS.END_DATE <![CDATA[>=]]> DATEFORMAT(GETDATE(),'YYYYMMDD')
-	ORDER BY GROUP_NEWS.NEWS_KEY DESC   
+<![CDATA[ 
+	  SELECT news_key
+	  		,groupcd
+	  		,groupname
+	  		,news_date
+	  		,news_time
+	  		,title
+	  		,content
+	  		,end_date
+	  		,kind
+	  		,team
+	  		,filename
+	    FROM group_news
+	   WHERE groupcd IN ('000000',#{GROUPCD}) 
+	   	AND end_date >= string(today(),"yyyymmdd")
+	ORDER BY news_date desc,news_key desc
+]]> 
 </select>
 
 <select id="selectShopDay" parameterType="java.util.HashMap" resultType="java.util.LinkedHashMap"> 

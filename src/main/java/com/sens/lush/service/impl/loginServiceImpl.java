@@ -87,26 +87,6 @@ public class loginServiceImpl implements loginService {
 		 return list;
      }
      
-     public Map<String,Object>  menuGroup(HashMap paramMap,String sGubun) throws Exception {
-	  	 Map<String, Object>  resultMap  = new HashMap<String, Object>();
-	  	 
-	   	 logger.info("menuGroup: "+ paramMap );
-	   	paramMap.put("PROGKIND",sGubun);
-	   	 List<Map<String, Object>> list = sqlSession.selectList(namespace+"menuGroup",paramMap);
-	   	 logger.info("menuGroup.List: "+ list );
-	   	 
-		HashMap map = new HashMap();
-		if (list.size()==0) {
-//			map.put("USERNAME","none");
-//			list.add(map);
-		}
-		else {
-		   	 logger.info("list"+ list );
-		}
-		 resultMap.put("data"     , list);
-		 logger.info("menuGroup.resultMap: "+ resultMap );
-		 return resultMap;
-  }    
 
      public Map<String,Object>  menuAgent(HashMap paramMap,String sGubun) throws Exception {
 	  	 Map<String, Object>  resultMap  = new HashMap<String, Object>();
@@ -137,22 +117,5 @@ public class loginServiceImpl implements loginService {
 		 return list;
   }
 
-     public List<Map<String, Object>>  gridComDay(HashMap paramMap) throws Exception {
-	  	 
-	   	 logger.info("selectComDay: "+ paramMap );
-	   	 List<Map<String, Object>> list = sqlSession.selectList(namespace+"selectComDay",paramMap);
-//	   	 logger.info("selectComDay.List: "+ list );
-	   	 
-		 return list;
-  }         
-
-     public List<Map<String, Object>>  gridShopDay(HashMap paramMap) throws Exception {
-	  	 
-	   	 logger.info("gridShopDay: "+ paramMap );
-	   	 List<Map<String, Object>> list = sqlSession.selectList(namespace+"selectShopDay",paramMap);
-//	   	 logger.info("selectComDay.List: "+ list );
-	   	 
-		 return list;
-  }         
 }
 

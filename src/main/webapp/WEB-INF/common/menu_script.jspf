@@ -3,26 +3,84 @@
 <script>
 // 컨트롤러에서 request.setAttribute("menuJson", ...) 로 내려준 값
 // (Service.menuAgent 결과를 ObjectMapper로 JSON 직렬화한 문자열)
-var menuData = ${menuJson};
+//
+// [새 메뉴 형식] {program, progname, progkind, newid, userid, progid, webid, parm}
+//   parm = 화면에 넘길 값 (PB OpenWithParm 처럼). 있으면 /webid.do?parm=값 으로 열림
+//          화면에서는 MENU_PARM 으로 읽음
+//   progkind = M : 그룹,  P : 프로그램
+//   newid 2자리(00,01..)          → 1단계 (M 이면 그룹, P 이면 단독 프로그램)
+//   newid 4자리(0001,0002..)      → 앞 2자리 그룹의 하위 메뉴
+// [예전 형식] {GUBUN, NAME, WEBID, CHK, PARM} 도 그대로 동작
+// 아래에서 새 형식을 예전 형식(GUBUN/NAME/WEBID/CHK)으로 바꿔 쓰므로
+// 화면 제목 표시 등 나머지 코드는 손대지 않아도 됨
+var menuData = normalizeMenu(${menuJson});
+
+// 레벨 한 칸의 글자 수 (새 형식 2, 예전 형식 1)
+var MENU_UNIT = (menuData.length && menuData[0]._newFmt) ? 2 : 1;
+
+function normalizeMenu(list) {
+  list = list || [];
+  var isNew = list.length > 0 && list[0].NAME === undefined && list[0].progname !== undefined;
+  if (!isNew) return list;
+
+  var out = list.map(function (m) {
+    var kind = String(m.progkind || "").trim().toUpperCase();
+    return {
+      GUBUN:   String(m.newid || "").trim(),
+      NAME:    String(m.progname || "").trim(),
+      WEBID:   String(m.webid || "").trim(),
+      PARM:    String(m.parm != null ? m.parm : (m.PARM != null ? m.PARM : "")).trim(),
+      CHK:     kind === "M" ? "G" : "P",
+      PROGRAM: m.program,
+      PROGID:  m.progid,
+      USERID:  m.userid,
+      _newFmt: true
+    };
+  });
+  out.sort(function (a, b) { return a.GUBUN.localeCompare(b.GUBUN); });
+  return out;
+}
 
 // ---- 메뉴 트리 빌드 & 렌더링 ----
-// GUBUN 길이 = 메뉴 레벨, 마지막 한 글자를 뗀 값이 부모의 GUBUN
+// GUBUN 길이 = 메뉴 레벨, 끝에서 MENU_UNIT 글자를 뗀 값이 부모의 GUBUN
 // CHK === "G" 인 항목은 하위메뉴를 가진 그룹(접었다 펼치는 헤더)
+function hasParentGroup(menuList, g) {
+  if (g.length <= MENU_UNIT) return false;
+  var parent = g.substr(0, g.length - MENU_UNIT);
+  return menuList.some(function (m) { return m.CHK === "G" && (m.GUBUN || "").trim() === parent; });
+}
+
 function buildMenuTree(menuList, parentGubun) {
   return menuList.filter(function (item) {
     var g = (item.GUBUN || "").trim();
     if (parentGubun === "") {
-      return g === "" || g.length === 1;
+      // 1단계 + 그룹이 없는 하위메뉴(고아)도 맨 위에 표시
+      return g === "" || g.length <= MENU_UNIT || !hasParentGroup(menuList, g);
     }
-    return g.length === parentGubun.length + 1 && g.indexOf(parentGubun) === 0;
+    return g.length === parentGubun.length + MENU_UNIT && g.indexOf(parentGubun) === 0;
   });
+}
+
+// 현재 화면 id (예: /mes0202.do → mes0202)
+var CUR_MENU_ID = String(location.pathname || "").split("/").pop().replace(/\.do$/i, "").toLowerCase();
+
+// 메뉴에서 넘겨준 parm (예: /mes36.do?parm=접착 → "접착", 없으면 "")
+var MENU_PARM = (function () {
+  try { return (new URLSearchParams(location.search).get("parm") || "").trim(); } catch (e) { return ""; }
+})();
+
+// 메뉴 주소 : parm 이 있으면 ?parm= 붙임
+function menuHref(item) {
+  var webid = String(item.WEBID || "").trim();
+  var parm  = String(item.PARM || "").trim();
+  return "/" + webid + ".do" + (parm ? "?parm=" + encodeURIComponent(parm) : "");
 }
 
 function renderMenuNodes(items, allMenuList, ulEl, depth, idPrefix) {
   items.forEach(function (item, idx) {
     var g = (item.GUBUN || "").trim();
     var li = document.createElement("li");
-    li.className = "nav-item" + (depth === 0 ? " mt-3" : "");
+    li.className = "nav-item";
 
     if (item.CHK === "G") {
       var collapseId = idPrefix + "_menuGroup_" + (g || "root") + "_" + idx;
@@ -31,19 +89,26 @@ function renderMenuNodes(items, allMenuList, ulEl, depth, idPrefix) {
         'style="padding-left:' + (12 + depth * 16) + 'px" ' +
         'data-bs-toggle="collapse" href="#' + collapseId + '" role="button" ' +
         'aria-expanded="false" aria-controls="' + collapseId + '">' +
-          item.NAME + '<span class="chevron">&#9662;</span>' +
+          '<span class="menu-name"></span><span class="chevron">&#9662;</span>' +
         '</a>' +
         '<div class="collapse" id="' + collapseId + '">' +
           '<ul class="nav flex-column gap-1"></ul>' +
         '</div>';
+      li.querySelector(".menu-name").textContent = item.NAME || "";
 
       var childUl = li.querySelector("ul");
       renderMenuNodes(buildMenuTree(allMenuList, g), allMenuList, childUl, depth + 1, idPrefix);
     } else {
-      li.innerHTML =
-        '<a class="nav-link menu-program-link sidebar-heading text-uppercase small fw-bold" style="padding-left:' + (12 + depth * 16) + 'px" href="/' + item.WEBID + '.do">' +
-          item.NAME +
-        '</a>';
+      var webid = String(item.WEBID || "").trim();
+      var a = document.createElement("a");
+      var parm  = String(item.PARM || "").trim();
+      // 같은 화면이 parm 만 달리 여러 메뉴에 있으면 parm 까지 같아야 선택 표시
+      var on = webid && webid.toLowerCase() === CUR_MENU_ID && parm === MENU_PARM;
+      a.className = "nav-link menu-program-link sidebar-heading text-uppercase small fw-bold" + (on ? " active" : "");
+      a.style.paddingLeft = (12 + depth * 16) + "px";
+      a.href = menuHref(item);
+      a.textContent = item.NAME || "";
+      li.appendChild(a);
     }
 
     ulEl.appendChild(li);
@@ -52,11 +117,22 @@ function renderMenuNodes(items, allMenuList, ulEl, depth, idPrefix) {
 
 function renderSidebarMenu(menuList, containerSelector, idPrefix) {
   var container = document.querySelector(containerSelector);
+  if (!container) return;
   var ul = document.createElement("ul");
   ul.className = "nav flex-column gap-1";
   renderMenuNodes(buildMenuTree(menuList, ""), menuList, ul, 0, idPrefix);
   container.innerHTML = "";
   container.appendChild(ul);
+
+  // 현재 화면 메뉴가 들어 있는 그룹은 펼쳐 둠
+  var act = container.querySelector("a.menu-program-link.active");
+  var box = act ? act.closest(".collapse") : null;
+  while (box) {
+    box.classList.add("show");
+    var head = container.querySelector('[aria-controls="' + box.id + '"]');
+    if (head) head.setAttribute("aria-expanded", "true");
+    box = box.parentElement ? box.parentElement.closest(".collapse") : null;
+  }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -176,7 +252,9 @@ function checkLogin() {
   document.addEventListener('click', function (e) {
     var a = e.target.closest ? e.target.closest('a.menu-program-link') : null;
     if (!a) return;
-    try { sessionStorage.setItem(KEY, JSON.stringify({ id: idOf(a.pathname), name: clean(a.textContent) })); } catch (x) {}
+    var parm = '';
+    try { parm = (new URLSearchParams(a.search).get('parm') || '').trim(); } catch (x) {}
+    try { sessionStorage.setItem(KEY, JSON.stringify({ id: idOf(a.pathname), parm: parm, name: clean(a.textContent) })); } catch (x) {}
   }, true);
 
   function apply() {
@@ -184,13 +262,17 @@ function checkLogin() {
     if (!id) return;
     try {
       var s = JSON.parse(sessionStorage.getItem(KEY) || 'null');
-      if (s && s.id === id) name = s.name;
+      if (s && s.id === id && (s.parm || '') === (window.MENU_PARM || '')) name = s.name;
     } catch (x) {}
     if (!name && window.menuData) {
+      var first = '';
       for (var i = 0; i < menuData.length; i++) {
         var m = menuData[i];
-        if (m.CHK !== 'G' && String(m.WEBID || '').trim().toLowerCase() === id) { name = clean(m.NAME); break; }
+        if (m.CHK === 'G' || String(m.WEBID || '').trim().toLowerCase() !== id) continue;
+        if (!first) first = clean(m.NAME);
+        if (String(m.PARM || '').trim() === (window.MENU_PARM || '')) { name = clean(m.NAME); break; }   // parm 까지 같은 메뉴
       }
+      if (!name) name = first;                                                                          // 없으면 화면이 같은 첫 메뉴
     }
     if (!name) return;
     var h = document.querySelector('.card-head h6');

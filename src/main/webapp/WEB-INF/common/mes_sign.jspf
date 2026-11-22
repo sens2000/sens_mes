@@ -1,0 +1,37 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<%-- ==================================================================
+     사양서 확정 / 결재 / 반려 처리 (공통)
+     - 사용 : 화면 JSP 아래쪽에 <%@ include file="/WEB-INF/common/mes_sign.jspf" %>
+              confirmJepm(jpno).then(function (r) { ... });                확정
+              signJepm(jpno).then(function (r) { ... r.orderno ... });     결재
+              rejectJepm(jpno).then(function (r) { ... });                 반려
+     - 서버 : POST /mes_sign/confirm, /mes_sign/approve, /mes_sign/reject  (mes_sign_Controller)
+              log_data 기록 + mc20_mst ok1 변경 (jpno 1건) 을 한 번에 처리
+     - 확인창 · 완료 메시지는 부르는 화면에서 처리 (signJepm 은 결과만 돌려줌)
+     ================================================================== --%>
+<script>
+  /* 확정 : log_data('확정') + mc20_mst.ok1 = '확정' */
+  function confirmJepm(jpno) { return mesSignPost("confirm", jpno); }
+
+  /* 결재 : log_data('결재') + mc20_mst.ok1 = '결재' */
+  function signJepm(jpno)   { return mesSignPost("approve", jpno); }
+
+  /* 반려 : log_data('반려') + mc20_mst.ok1 = '반려' */
+  function rejectJepm(jpno) { return mesSignPost("reject", jpno); }
+
+  function mesSignPost(action, jpno) {
+    jpno = String(jpno || "").trim();
+    if (!jpno) return Promise.reject(new Error("전표번호가 없습니다."));
+    return fetch('${pageContext.request.contextPath}' + "/mes_sign/" + action, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+        body: "jpno=" + encodeURIComponent(jpno)
+      })
+      .then(function (r) { if (!r.ok) throw new Error("서버 요청 실패 (" + r.status + ")"); return r.json(); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.msg || "처리 중 오류가 발생했습니다.");
+        return res.data;            // { jpno, orderno, count, ok1 }
+      });
+  }
+</script>

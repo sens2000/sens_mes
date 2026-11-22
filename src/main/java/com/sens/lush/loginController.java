@@ -260,14 +260,8 @@ public class loginController {
 	    }
 
 	    List<Map<String, Object>> newslist = Service.gridGroupNews(mapUser);
-	    List<Map<String, Object>> daymclist = Service.gridComDay(mapUser);
-	    List<Map<String, Object>> shopmclist = Service.gridShopDay(mapUser);
-	    logger.info("s_news daymclist size: " + (daymclist == null ? "null" : daymclist.size()));
-	    logger.info("s_news daymclist size: " + (shopmclist == null ? "null" : shopmclist.size()));
 	    Map<String, Object> resultMap = new HashMap<String, Object>();
 	    resultMap.put("news", newslist);
-	    resultMap.put("day",  daymclist);
-	    resultMap.put("shop",  shopmclist);
 	    model.addAttribute("data", resultMap);
 	    
 	    return "s_news"; // ViewResolver가 /WEB-INF/(views 등 설정된 경로)/s_main.jsp 로 알아서 매핑
@@ -296,11 +290,8 @@ public class loginController {
 	        // 세션 USER 는 건드리지 않도록 복사본에 일자 추가
 	        HashMap param = new HashMap(mapUser);
 	        param.put("SDATE", sDate);
-	        List<Map<String, Object>> shopmclist = Service.gridShopDay(param);
 	        res.put("date", sDate);
-	        logger.info("s_shopDay " + sDate + " size: " + (shopmclist == null ? "null" : shopmclist.size()));
 	        res.put("ok", true);
-	        res.put("data", shopmclist == null ? new ArrayList<Map<String, Object>>() : shopmclist);
 	        res.put("time", new SimpleDateFormat("HH:mm:ss").format(new Date()));
 	    } catch (Exception e) {
 	        logger.error("s_shopDay error", e);
@@ -451,10 +442,6 @@ public class loginController {
 			    logger.info("mapUser: "+ mapUser);
 
 				List<Map<String, Object>> newslist = Service.gridGroupNews(mapUser);
-				List<Map<String, Object>> daymclist = Service.gridComDay(mapUser);
-				List<Map<String, Object>> shopmclist = Service.gridShopDay(mapUser);
-			    logger.info("login daymclist size: " + (daymclist == null ? "null" : daymclist.size()));
-			    logger.info("login daymclist size: " + (shopmclist == null ? "null" : shopmclist.size()));
 
 			    logger.info("login map : " + map);
 				Map<String, Object> menu = Service.menuAgent(mapUser, "");
@@ -465,8 +452,6 @@ public class loginController {
 				
 			  	Map<String, Object>  resultMap  = new HashMap<String, Object>();
 				resultMap.put("news"     , newslist);
-				resultMap.put("day"     , daymclist);
-				resultMap.put("shop"     , shopmclist);
 				model.addAttribute("data", resultMap);
 
 				
@@ -532,74 +517,6 @@ public class loginController {
         map.put("count", count);
         return map;
     }
-    
-	
-	@RequestMapping(value = "/m_loginOk.do")
-	public String m_loginOk(HttpServletRequest request,Model model, HttpSession session) throws Exception {
-
-		String sId = request.getParameter("ID");
-		String sPass = request.getParameter("PASS");
-		
-		System.out.println("loginOk.logIn: "+ sId );
-		System.out.println("loginOk.sPass: "+ sPass );
-		String sPage = "";
-		if (sId==null || sPass==null){
-			sPage = "m_relogin";
-		}
-		else {
-			HashMap map = new HashMap();
-			map.put("SID", sId);
-			map.put("SPASS", sPass);
-			List<Map<String, Object>> listLogin = Service.loginCheck(map);
- 
-
-//		    List<Map> temp = (List<Map>) list.get("data");
-		    if (listLogin.size()==0){
-			    logger.info("temp.size 0: " );
-				sPage = "m_relogin";
-				model.addAttribute("msg", "아이디 또는 암호가 틀립니다");
-		    }
-		    else{
-				SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd");
-				Date today = new Date();
-				String strDate = format.format(today);
-				map.put("YYMM", strDate.substring(0, 6));
-				map.put("YYMMDD", strDate);
-			    logger.info("listLogin: "+ listLogin);
-
-				Iterator it = listLogin.iterator();
-				HashMap mapUser = new HashMap();
-				mapUser = (HashMap)it.next();
-			    logger.info("mapUser: "+ mapUser);
-
-				List<Map<String, Object>> newslist = Service.gridGroupNews(map);
-				List<Map<String, Object>> daymclist = Service.gridComDay(map);
-				
-			  	Map<String, Object>  resultMap  = new HashMap<String, Object>();
-				resultMap.put("news"     , newslist);
-				resultMap.put("day"     , daymclist);
-				model.addAttribute("data", resultMap);
-
-				
-				
-				Map<String, Object> list = Service.menuGroup(map,"m_M");
-				Map<String, Object> sublist = Service.menuGroup(map,"m_P");
-				if ("S".equals(mapUser.get("CHK"))) {
-					sPage = "m_relogin";
-					model.addAttribute("msg", "사용중지된 아이디 입니다.");
-				} else {
-					session.setAttribute("USER", mapUser);
-					session.setAttribute("list", list);
-					session.setAttribute("sublist", sublist);
-					sPage = "m_main";
-				}
-		    }
-		    logger.info("sPage: "+ sPage);
-		    
-				
-		}
-	    return sPage;
-	}
 
 	@RequestMapping(
 			  value="/m_loginConfirm.do",
@@ -747,11 +664,9 @@ public class loginController {
 		}
 		else{
 			List<Map<String, Object>> newslist = Service.gridGroupNews(map);
-			List<Map<String, Object>> daymclist = Service.gridComDay(map);
 			
 		  	Map<String, Object>  resultMap  = new HashMap<String, Object>();
 			resultMap.put("news"     , newslist);
-			resultMap.put("day"     , daymclist);
 			model.addAttribute("data", resultMap);			
 		}
 	    logger.info("sPage: "+ sPage);
@@ -783,29 +698,6 @@ public class loginController {
 
 	}
 	
-	@RequestMapping(value = "/gridComDay.do")
-	public void gridComDay(HttpServletRequest request,HttpServletResponse res) throws Exception {
-
-		String sId = request.getParameter("ID");
-		String sPass = request.getParameter("PASS");
-	    logger.info("grid check: "+ request.getParameter("check"));
-	    logger.info("grid custname: "+ request.getParameter("custname"));
-		
-		HashMap map = new HashMap();
-		map.put("SID", sId);
-		map.put("SPASS", sPass);
-
-		List<Map<String, Object>> list = Service.gridComDay(map);
-	    String gSon = JsonUtil.ListToStringData(list);
-
-	    res.setContentType("text/html; charset=UTF-8");
-
-		PrintWriter out = res.getWriter();  	
-
-		out.print(gSon); 		
-
-	}
-
 	@RequestMapping(value = "/logout.do")
 	public String logOut(HttpServletRequest request,Model model, HttpSession session) throws Exception {
 

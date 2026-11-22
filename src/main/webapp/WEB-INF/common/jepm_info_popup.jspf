@@ -1,0 +1,75 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<%-- ==================================================================
+     사양서 확인 / 사양서출고 확인 팝업 열기 (공통)
+     - 사용 : 화면 JSP 아래쪽에 <%@ include file="/WEB-INF/common/jepm_info_popup.jspf" %>
+              openJepmInfo(jpno, orderno, mode);   사양서 확인 (mes0201_jepm_info)  mode : '생산'(확정 버튼) / '결재'(반려·결재 버튼)
+              openJepmJego(jpno, orderno);   사양서출고 확인 (mes0201_jepm_jego)
+              openJepmSpec(jepmno);          제품 사양 정보 (mes3202_jepm_info)
+              openJepmOrder(jpno);           수주 정보      (mes3204_jepm_info)
+              openJepmOrderView(jpno);       수주 조회      (mes3205_jepm_info)
+     - 팝업마다 창 이름이 정해져 있어 여러 번 눌러도 종류별로 1개만 열림
+     ================================================================== --%>
+<script>
+  /* 사양서 확인 (출고가 아닌 건) */
+  /*   mode : '생산' (기본, 확정 버튼 보임) / '결재' (반려 · 결재 버튼 보임) */
+  function openJepmInfo(jpno, orderno, mode) {
+    openJepmPopup("/mes0201_jepm_info.do", "jepm_info", jpno, orderno, 700, mode || "생산");   // 열린 뒤 내용에 맞게 높이 자동 조정
+  }
+
+  /* 사양서출고 확인 (출고 건) */
+  function openJepmJego(jpno, orderno) { openJepmPopup("/mes0201_jepm_jego.do", "jepm_jego", jpno, orderno, 620); }   // 열린 뒤 내용에 맞게 높이 자동 조정
+
+  /* 수주 조회 (전표번호 기준, 조회 전용 — 재공 제품·외주·지류·청구 포함) */
+  function openJepmOrderView(jpno) {
+    jpno = String(jpno || "").trim();
+    if (!jpno) { alert("전표번호가 없습니다."); return; }
+    var url = '${pageContext.request.contextPath}' + "/mes3205_jepm_info.do?jpno=" + encodeURIComponent(jpno);
+    var w = Math.min(1200, screen.availWidth - 20), h = Math.min(860, screen.availHeight - 60);   // 열린 뒤 내용에 맞게 높이 자동 조정
+    var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), tp = Math.max(0, Math.round((screen.availHeight - h) / 2));
+    var win = window.open(url, "jepm_order_view",
+      "width=" + w + ",height=" + h + ",left=" + l + ",top=" + tp + ",resizable=yes,scrollbars=yes");
+    if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
+    win.focus();
+  }
+
+  /* 수주 정보 (전표번호 기준, 조회 전용) */
+  function openJepmOrder(jpno) {
+    jpno = String(jpno || "").trim();
+    if (!jpno) { alert("전표번호가 없습니다."); return; }
+    var url = '${pageContext.request.contextPath}' + "/mes3204_jepm_info.do?jpno=" + encodeURIComponent(jpno);
+    var w = Math.min(1150, screen.availWidth - 20), h = Math.min(420, screen.availHeight - 60);   // 열린 뒤 내용에 맞게 높이 자동 조정
+    var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), t = Math.max(0, Math.round((screen.availHeight - h) / 2));
+    var win = window.open(url, "jepm_order",
+      "width=" + w + ",height=" + h + ",left=" + l + ",top=" + t + ",resizable=yes,scrollbars=yes");
+    if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
+    win.focus();
+  }
+
+  /* 제품 사양 정보 (제품번호 기준, 조회 전용) */
+  function openJepmSpec(jepmno) {
+    jepmno = String(jepmno || "").trim();
+    if (!jepmno) { alert("제품번호가 없습니다."); return; }
+    var url = '${pageContext.request.contextPath}' + "/mes3202_jepm_info.do?jepmno=" + encodeURIComponent(jepmno);
+    var w = Math.min(1100, screen.availWidth - 20), h = Math.min(780, screen.availHeight - 60);   // 열린 뒤 내용에 맞게 높이 자동 조정
+    var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), t = Math.max(0, Math.round((screen.availHeight - h) / 2));
+    var win = window.open(url, "jepm_spec",
+      "width=" + w + ",height=" + h + ",left=" + l + ",top=" + t + ",resizable=yes,scrollbars=yes");
+    if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
+    win.focus();
+  }
+
+  function openJepmPopup(path, name, jpno, orderno, height, mode) {
+    jpno = String(jpno || "").trim();
+    if (!jpno) { alert("전표번호가 없습니다."); return; }
+    var url = '${pageContext.request.contextPath}' + path + "?jpno=" + encodeURIComponent(jpno) +
+              "&orderno=" + encodeURIComponent(String(orderno || "").trim()) +
+              (mode ? "&mode=" + encodeURIComponent(mode) : "");
+    var w = Math.min(1320, screen.availWidth - 20), h = Math.min(height || 860, screen.availHeight - 60);
+    var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), t = Math.max(0, Math.round((screen.availHeight - h) / 2));
+    var win = window.open(url, name,
+      "width=" + w + ",height=" + h + ",left=" + l + ",top=" + t + ",resizable=yes,scrollbars=yes");
+    if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
+    win.focus();
+  }
+</script>

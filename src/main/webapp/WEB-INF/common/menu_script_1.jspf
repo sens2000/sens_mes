@@ -1,0 +1,263 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<script>
+// 컨트롤러에서 request.setAttribute("menuJson", ...) 로 내려준 값
+// (Service.menuAgent 결과를 ObjectMapper로 JSON 직렬화한 문자열)
+//
+// [새 메뉴 형식] {program, progname, progkind, newid, userid, progid, webid}
+//   progkind = M : 그룹,  P : 프로그램
+//   newid 2자리(00,01..)          → 1단계 (M 이면 그룹, P 이면 단독 프로그램)
+//   newid 4자리(0001,0002..)      → 앞 2자리 그룹의 하위 메뉴
+// [예전 형식] {GUBUN, NAME, WEBID, CHK} 도 그대로 동작
+// 아래에서 새 형식을 예전 형식(GUBUN/NAME/WEBID/CHK)으로 바꿔 쓰므로
+// 화면 제목 표시 등 나머지 코드는 손대지 않아도 됨
+var menuData = normalizeMenu(${menuJson});
+
+// 레벨 한 칸의 글자 수 (새 형식 2, 예전 형식 1)
+var MENU_UNIT = (menuData.length && menuData[0]._newFmt) ? 2 : 1;
+
+function normalizeMenu(list) {
+  list = list || [];
+  var isNew = list.length > 0 && list[0].NAME === undefined && list[0].progname !== undefined;
+  if (!isNew) return list;
+
+  var out = list.map(function (m) {
+    var kind = String(m.progkind || "").trim().toUpperCase();
+    return {
+      GUBUN:   String(m.newid || "").trim(),
+      NAME:    String(m.progname || "").trim(),
+      WEBID:   String(m.webid || "").trim(),
+      CHK:     kind === "M" ? "G" : "P",
+      PROGRAM: m.program,
+      PROGID:  m.progid,
+      USERID:  m.userid,
+      _newFmt: true
+    };
+  });
+  out.sort(function (a, b) { return a.GUBUN.localeCompare(b.GUBUN); });
+  return out;
+}
+
+// ---- 메뉴 트리 빌드 & 렌더링 ----
+// GUBUN 길이 = 메뉴 레벨, 끝에서 MENU_UNIT 글자를 뗀 값이 부모의 GUBUN
+// CHK === "G" 인 항목은 하위메뉴를 가진 그룹(접었다 펼치는 헤더)
+function hasParentGroup(menuList, g) {
+  if (g.length <= MENU_UNIT) return false;
+  var parent = g.substr(0, g.length - MENU_UNIT);
+  return menuList.some(function (m) { return m.CHK === "G" && (m.GUBUN || "").trim() === parent; });
+}
+
+function buildMenuTree(menuList, parentGubun) {
+  return menuList.filter(function (item) {
+    var g = (item.GUBUN || "").trim();
+    if (parentGubun === "") {
+      // 1단계 + 그룹이 없는 하위메뉴(고아)도 맨 위에 표시
+      return g === "" || g.length <= MENU_UNIT || !hasParentGroup(menuList, g);
+    }
+    return g.length === parentGubun.length + MENU_UNIT && g.indexOf(parentGubun) === 0;
+  });
+}
+
+// 현재 화면 id (예: /mes0202.do → mes0202)
+var CUR_MENU_ID = String(location.pathname || "").split("/").pop().replace(/\.do$/i, "").toLowerCase();
+
+function renderMenuNodes(items, allMenuList, ulEl, depth, idPrefix) {
+  items.forEach(function (item, idx) {
+    var g = (item.GUBUN || "").trim();
+    var li = document.createElement("li");
+    li.className = "nav-item";
+
+    if (item.CHK === "G") {
+      var collapseId = idPrefix + "_menuGroup_" + (g || "root") + "_" + idx;
+      li.innerHTML =
+        '<a class="nav-link menu-group-link d-flex justify-content-between align-items-center" ' +
+        'style="padding-left:' + (12 + depth * 16) + 'px" ' +
+        'data-bs-toggle="collapse" href="#' + collapseId + '" role="button" ' +
+        'aria-expanded="false" aria-controls="' + collapseId + '">' +
+          '<span class="menu-name"></span><span class="chevron">&#9662;</span>' +
+        '</a>' +
+        '<div class="collapse" id="' + collapseId + '">' +
+          '<ul class="nav flex-column gap-1"></ul>' +
+        '</div>';
+      li.querySelector(".menu-name").textContent = item.NAME || "";
+
+      var childUl = li.querySelector("ul");
+      renderMenuNodes(buildMenuTree(allMenuList, g), allMenuList, childUl, depth + 1, idPrefix);
+    } else {
+      var webid = String(item.WEBID || "").trim();
+      var a = document.createElement("a");
+      a.className = "nav-link menu-program-link sidebar-heading text-uppercase small fw-bold" +
+                    (webid && webid.toLowerCase() === CUR_MENU_ID ? " active" : "");
+      a.style.paddingLeft = (12 + depth * 16) + "px";
+      a.href = "/" + webid + ".do";
+      a.textContent = item.NAME || "";
+      li.appendChild(a);
+    }
+
+    ulEl.appendChild(li);
+  });
+}
+
+function renderSidebarMenu(menuList, containerSelector, idPrefix) {
+  var container = document.querySelector(containerSelector);
+  if (!container) return;
+  var ul = document.createElement("ul");
+  ul.className = "nav flex-column gap-1";
+  renderMenuNodes(buildMenuTree(menuList, ""), menuList, ul, 0, idPrefix);
+  container.innerHTML = "";
+  container.appendChild(ul);
+
+  // 현재 화면 메뉴가 들어 있는 그룹은 펼쳐 둠
+  var act = container.querySelector("a.menu-program-link.active");
+  var box = act ? act.closest(".collapse") : null;
+  while (box) {
+    box.classList.add("show");
+    var head = container.querySelector('[aria-controls="' + box.id + '"]');
+    if (head) head.setAttribute("aria-expanded", "true");
+    box = box.parentElement ? box.parentElement.closest(".collapse") : null;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  // 메뉴 렌더링 (데스크탑 / 모바일 각각 다른 id prefix로 충돌 방지)
+  renderSidebarMenu(menuData, "#sidebarMenu", "d");
+  renderSidebarMenu(menuData, "#sidebarMenuMobile", "m");
+
+  // 모바일 메뉴: 항목 선택 시 오프캔버스 자동 닫기 (메뉴가 그려진 뒤에 걸어야 함)
+  var sidebarOffcanvasEl = document.getElementById("sidebarOffcanvas");
+  var sidebarOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(sidebarOffcanvasEl);
+  sidebarOffcanvasEl
+    .querySelectorAll(".nav-link:not([data-bs-toggle='collapse'])")
+    .forEach(function (link) {
+      link.addEventListener("click", function () {
+        sidebarOffcanvas.hide();
+      });
+    });
+});
+
+function handleLogout() {
+	  fetch("/s_logout.do", { method: "POST" })
+	    .then(function () { window.location.href = "/sens.jsp"; })
+	    .catch(function () { window.location.href = "/sens.jsp"; }); // 실패해도 어차피 로그인 화면으로
+	}
+	
+function checkLogin() {
+	  fetch("s_me.do")
+	    .then(function (res) { return res.json(); })
+	    .then(function (result) {
+	      if (!result.success) {
+	        window.location.href = "sens.jsp";
+	        return;
+	      }
+	      const member = result.data;
+	      document.getElementById("userLabel").textContent =
+	          (member.USERNAME || member.NAME || member.USERID) + "님";
+	      if (window.setTopShop) window.setTopShop(member.SHOPNAME || member.SHOPNM || member.shopname || member.SHOPNO || "");
+	    })
+	    .catch(function () {
+	      window.location.href = "sens.jsp";
+	    });
+	}	
+</script>
+
+<%-- ==================================================================
+     상단바 가운데 오늘 일자·요일 표시 (전체 화면 공통)
+     - 담당자 이름(#userLabel) 또는 [로그아웃] 버튼이 있는 상단바를 찾아 가운데에 "강남점  2026-10-27 (화)" 표시
+     - 화면을 켜 둔 채 자정이 지나면 1분 안에 날짜가 바뀜
+     - 이미 표시돼 있으면 다시 만들지 않음 (중복 방지)
+     ================================================================== --%>
+<style>
+  .top-date { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none;
+              color: #fff; font-weight: 700; font-size: 17px; white-space: nowrap; letter-spacing: .5px; }
+  .top-date .top-shop { color: #ffd66b; margin-right: 12px; }
+  .top-date .top-shop:empty { display: none; }
+  @media (max-width: 576px) { .top-date { font-size: 13px; } .top-date .top-shop { margin-right: 6px; } }
+</style>
+<script>
+(function () {
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  function setup() {
+    if (document.querySelector('.top-date')) return;
+    var start = document.getElementById('userLabel') ||
+      Array.prototype.filter.call(document.querySelectorAll('a, button'), function (el) {
+        return el.textContent.replace(/\s/g, '') === '로그아웃';
+      })[0];
+    if (!start) return;
+
+    // 위로 올라가며 화면 폭 거의 전체를 차지하는 상단바를 찾음
+    var bar = start.parentElement;
+    while (bar && bar !== document.body && bar.offsetWidth < window.innerWidth * 0.8) bar = bar.parentElement;
+    if (!bar || bar === document.body) bar = start.parentElement;
+    if (getComputedStyle(bar).position === 'static') bar.style.position = 'relative';
+
+    var span = document.createElement('span');
+    span.className = 'top-date';
+    var shopEl = document.createElement('span');     // 매장명 (일자 왼쪽)
+    shopEl.className = 'top-shop';
+    var dateEl = document.createElement('span');
+    span.appendChild(shopEl);
+    span.appendChild(dateEl);
+    bar.appendChild(span);
+
+    // 매장명 : 세션 USER 의 SHOPNAME → 없으면 checkLogin(s_me.do) 결과로 채움
+    window.setTopShop = function (name) { if (name) shopEl.textContent = String(name).trim(); };
+    window.setTopShop('${sessionScope.USER.SHOPNAME}');
+
+    function show() {
+      var d = new Date();
+      dateEl.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                       + ' (' + '일월화수목금토'.charAt(d.getDay()) + ')';
+    }
+    show();
+    setInterval(show, 60 * 1000);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+  else setup();
+})();
+</script>
+
+<%-- ==================================================================
+     화면 제목 = 왼쪽 메뉴 이름 (전체 화면 공통)
+     - 메뉴를 누르면 그 메뉴 이름을 기억했다가, 열린 화면의 제목(.card-head h6)과 브라우저 탭 제목으로 표시
+     - 같은 화면(WEBID)이 여러 메뉴에 걸려 있어도 실제로 누른 메뉴 이름이 나옴
+     - 주소를 직접 열었을 때는 menuData 에서 WEBID 가 같은 첫 메뉴 이름 사용
+     - 메뉴에 없는 화면이면 JSP 에 적힌 원래 제목 그대로
+     ================================================================== --%>
+<script>
+(function () {
+  var KEY = 'menuTitle';
+  function idOf(path) { return String(path || '').split('/').pop().replace(/\.do$/i, '').trim().toLowerCase(); }
+  function clean(s)   { return String(s || '').replace(/\s+/g, ' ').trim(); }
+
+  // 메뉴 클릭 : 누른 메뉴 이름 기억
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a.menu-program-link') : null;
+    if (!a) return;
+    try { sessionStorage.setItem(KEY, JSON.stringify({ id: idOf(a.pathname), name: clean(a.textContent) })); } catch (x) {}
+  }, true);
+
+  function apply() {
+    var id = idOf(location.pathname), name = '';
+    if (!id) return;
+    try {
+      var s = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+      if (s && s.id === id) name = s.name;
+    } catch (x) {}
+    if (!name && window.menuData) {
+      for (var i = 0; i < menuData.length; i++) {
+        var m = menuData[i];
+        if (m.CHK !== 'G' && String(m.WEBID || '').trim().toLowerCase() === id) { name = clean(m.NAME); break; }
+      }
+    }
+    if (!name) return;
+    var h = document.querySelector('.card-head h6');
+    if (h) h.textContent = name;
+    document.title = name;
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+})();
+</script>
