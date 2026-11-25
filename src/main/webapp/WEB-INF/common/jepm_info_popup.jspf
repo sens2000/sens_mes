@@ -8,6 +8,8 @@
               openJepmSpec(jepmno);          제품 사양 정보 (mes3202_jepm_info)
               openJepmOrder(jpno);           수주 정보      (mes3204_jepm_info)
               openJepmOrderView(jpno);       수주 조회      (mes3205_jepm_info)
+              openJepmMst(jepmno);           제품 등록 정보 (mes0104_jepm_mst)
+              openCustMst(custcd);           거래처 정보    (mes0105_cust_mst)
      - 팝업마다 창 이름이 정해져 있어 여러 번 눌러도 종류별로 1개만 열림
      ================================================================== --%>
 <script>
@@ -54,6 +56,32 @@
     var w = Math.min(1100, screen.availWidth - 20), h = Math.min(780, screen.availHeight - 60);   // 열린 뒤 내용에 맞게 높이 자동 조정
     var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), t = Math.max(0, Math.round((screen.availHeight - h) / 2));
     var win = window.open(url, "jepm_spec",
+      "width=" + w + ",height=" + h + ",left=" + l + ",top=" + t + ",resizable=yes,scrollbars=yes");
+    if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
+    win.focus();
+  }
+
+  /* 제품 등록 정보 (제품번호 기준, 지금은 조회 전용) */
+  function openJepmMst(jepmno) {
+    jepmno = String(jepmno || "").trim();
+    if (!jepmno) { alert("제품번호가 없습니다."); return; }
+    var url = '${pageContext.request.contextPath}' + "/mes0104_jepm_mst.do?jepmno=" + encodeURIComponent(jepmno);
+    var w = Math.min(760, screen.availWidth - 20), h = Math.min(560, screen.availHeight - 60);   // 열린 뒤 내용에 맞게 높이 자동 조정
+    var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), t = Math.max(0, Math.round((screen.availHeight - h) / 2));
+    var win = window.open(url, "jepm_mst",
+      "width=" + w + ",height=" + h + ",left=" + l + ",top=" + t + ",resizable=yes,scrollbars=yes");
+    if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
+    win.focus();
+  }
+
+  /* 거래처 정보 (거래처코드 기준, 지금은 조회 전용) */
+  function openCustMst(custcd) {
+    custcd = String(custcd || "").trim();
+    if (!custcd) { alert("거래처코드가 없습니다."); return; }
+    var url = '${pageContext.request.contextPath}' + "/mes0105_cust_mst.do?custcd=" + encodeURIComponent(custcd);
+    var w = Math.min(780, screen.availWidth - 20), h = Math.min(520, screen.availHeight - 60);   // 열린 뒤 내용에 맞게 높이 자동 조정
+    var l = Math.max(0, Math.round((screen.availWidth - w) / 2)), t = Math.max(0, Math.round((screen.availHeight - h) / 2));
+    var win = window.open(url, "cust_mst",
       "width=" + w + ",height=" + h + ",left=" + l + ",top=" + t + ",resizable=yes,scrollbars=yes");
     if (!win) { alert("팝업이 차단되었습니다. 브라우저 주소창 오른쪽에서 팝업을 허용해 주세요."); return; }
     win.focus();

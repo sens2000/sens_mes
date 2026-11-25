@@ -87,8 +87,7 @@
         <input type="date" id="tdate" class="form-control form-control-sm w-date">
 
         <span class="lbl ms-3">매출처</span>
-        <input type="text" id="custName" class="form-control form-control-sm w-long" list="custList" placeholder="이름 입력 후 선택" autocomplete="off">
-        <datalist id="custList"></datalist>
+        <input type="text" id="custName" class="form-control form-control-sm w-long" placeholder="이름 일부  ENTER=조회">
       </div>
 
       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -221,43 +220,19 @@
     }, 1000);
   }
 
-  /* ---------- 매출처 찾기 ---------- */
-  let custMap = {}, custTimer = null;
-  function findCust() {
-    const q = $("custName").value.trim();
-    if (custMap[q]) return;
-    clearTimeout(custTimer);
-    if (!q) return;
-    custTimer = setTimeout(function () {
-      getJson(CTX + "/mes0201/cust?q=" + encodeURIComponent(q))
-        .then(function (res) {
-          const dl = $("custList");
-          dl.innerHTML = ""; custMap = {};
-          (res.data || []).forEach(function (c) {
-            custMap[c.custname] = c.custcd;
-            const o = document.createElement("option"); o.value = c.custname; dl.appendChild(o);
-          });
-        })
-        .catch(function (e) { console.log(e); });
-    }, 250);
-  }
-
   /* ---------- 조회 ---------- */
   function params() {
     const p = new URLSearchParams();
     p.set("dateKind", $("dateKind").value);
     p.set("fdate",    $("fdate").value.replace(/-/g, ""));
     p.set("tdate",    $("tdate").value.replace(/-/g, ""));
-    p.set("custcd",   custMap[$("custName").value.trim()] || "");
+    p.set("custnm",   $("custName").value.trim());
     p.set("keyKind",  $("keyKind").value);
     p.set("keyText",  $("keyText").value.trim());
     return p;
   }
 
   function search() {
-    if ($("custName").value.trim() && !custMap[$("custName").value.trim()]) {
-      alert("매출처는 목록에서 선택하세요."); $("custName").focus(); return;
-    }
     const btn = $("btnSearch"), btnText = btn.textContent;
     btn.disabled = true; btn.textContent = "조회 중…";
     showLoading(true);
@@ -304,8 +279,9 @@
       if (!grid.getDataCount()) { alert("조회된 자료가 없습니다."); return; }
       grid.download("xlsx", "납품_" + ymdInput(new Date()).replace(/-/g, "") + ".xlsx", { sheetName: "납품" });
     });
-    $("keyText").addEventListener("keydown", function (e) { if (e.key === "Enter") search(); });
-    $("custName").addEventListener("input", findCust);
+    ["keyText", "custName"].forEach(function (id) {
+      $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") search(); });
+    });
   });
 </script>
 

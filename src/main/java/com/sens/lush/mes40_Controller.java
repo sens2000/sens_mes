@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * mes40 납품 (PB mes40 조회 화면)
  *  - /mes40.do         화면
  *  - /mes40/list       조회 (JSON)
- *  매출처 찾기는 mes0201 의 /mes0201/cust 를 같이 씀
+ *  매출처는 이름 포함 검색 (cust_mst.custname like '%글자%')
  *
  *  수주번호 / 원코드 / 제품명 은 매출처 · 기간과 같이 적용 (제품명은 "/" 로 앞글자/포함글자)
  *  mc20_mst 와 delivery_dtl 에 같은 이름이 많아 mc20_mst 쪽은 mst_ 별칭
@@ -125,7 +125,12 @@ public class mes40_Controller {
                 }
             }
 
-            eq(sql, p, "delivery_dtl.custcd", "custcd", v(req, "custcd"));     // 매출처
+            // 매출처 : 이름에 입력한 글자가 들어간 것
+            String custnm = v(req, "custnm");
+            if (!isEmpty(custnm)) {
+                sql.append(" AND cust_mst.custname LIKE :custnm");
+                p.addValue("custnm", "%" + custnm + "%");
+            }
 
             // 등록일 / 납품일
             String col = "deliverydate".equals(v(req, "dateKind")) ? "delivery_dtl.deliverydate" : "delivery_dtl.prdate";
